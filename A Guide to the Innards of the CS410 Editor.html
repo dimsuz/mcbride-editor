@@ -1,0 +1,237 @@
+<!DOCTYPE html PUBLIC "-//IETF//DTD HTML//EN">
+<html><head>
+<meta http-equiv="content-type" content="text/html; charset=windows-1252">
+<title>A Guide to the Innards of the CS410 Editor</title>
+</head>
+
+<body>
+<h1>A Guide to the Innards of the CS410 Editor</h1>
+
+<h2>Overview</h2>
+
+<p>There are five files involved in the CS410 "credit" editor.</p>
+
+<ul>
+<li><a href="https://personal.cis.strath.ac.uk/conor.mcbride/CS410/ANSIEscapes.hs"><code>ANSIEscapes.hs</code></a>, which defines some useful
+  control codes for interacting with a console: driving the cursor
+  around, colouring text, that sort of thing. It's used to perform
+  the update operations in the console.</li>
+<li><a href="https://personal.cis.strath.ac.uk/conor.mcbride/CS410/Block.hs"><code>Block.hs</code></a>, which is a small library for building
+  tilings of rectangular components, of which more shortly. Note,
+  there's some junk at the bottom of the file which looks like
+  something I typed during a lecture in 2009.  It's used to model
+  the buffer contents for display purposes.</li>
+<li><a href="https://personal.cis.strath.ac.uk/conor.mcbride/CS410/Overlay.hs"><code>Overlay.hs</code></a>, which is a practical from 2009. It
+  shows how to <em>crop</em> a layout from the <code>Block</code> library. It's used
+  to select the region of the buffer to be redisplayed. However,
+  as its name suggests, it also sets an exercise in <em>overlaying</em>
+  block layouts with transparent regions. You may find this useful
+  if you want to implement popups of any kind.</li>
+<li><a href="https://personal.cis.strath.ac.uk/conor.mcbride/CS410/Prac1.hs"><code>Prac1.hs</code></a>, which has your implementation of
+  <code>handleKey</code>, giving meaning to the keystrokes. Note also the
+  crucial function <code>whatAndWhere</code> which translates the nested
+  cursor structure that your code updates into the layout
+  structure from the <code>Block</code> library.</li>
+<li><a href="https://personal.cis.strath.ac.uk/conor.mcbride/CS410/Main.hs"><code>Main.hs</code></a>, which has the bindings to console
+  interaction and handles both the keystroke translation and the
+  main "event loop" in the <code>inner</code> helper function, subordinate to
+  <code>outer</code>. Your <code>handleKey</code> is used to update the data model for
+  the editor, then <code>whatAndWhere</code> is used to regenerate the
+  buffer.</li>
+</ul>
+
+<h2>Blocks</h2>
+
+<p>The <code>Block</code> library gives a simple data structure for working with tiles
+of stuff. <code>Block a</code> is defined mutually with <code>Layout a</code>, where the latter
+is a <em>sized</em> block. The parameter <code>a</code> gets instantiated with whatever
+your basic tiles are made of, e.g. <code>Box</code>, being lists of strings (hopefully
+corresponding to a rectangle of text). Tiles can be put joined horizontally
+or vertically. You should always ensure that they fit snugly.</p>
+
+<p>To help you, there's a bunch of combinators for layouts which make
+correctly sized components from strings, and which join components
+together even if they don't fit snugly. The <code>Blank</code> constructor for
+<code>Block a</code> gets used to pad out irregularly sized blocks so that they
+fit.</p>
+
+<p>Once you've got a <code>Layout</code>, you can render it. The <code>layout</code> function
+computes one big <code>Box</code> from a sized tiling of wee boxes. If all the
+components have the sizes claimed and all of the fitting is snug, then
+you'll get a rectangular layout. If you look in <a href="https://personal.cis.strath.ac.uk/conor.mcbride/CS410/Main.hs"><code>Main.hs</code></a>,
+you'll see <code>layout</code> being used to generate the sequence of text to send
+to the console.</p>
+
+<p>If you look in <a href="https://personal.cis.strath.ac.uk/conor.mcbride/CS410/Prac1.hs"><code>Prac1.hs</code></a>, you'll see that <code>whatAndWhere</code>
+generates a <code>Layout Box</code> corresponding to the whole text being edited,
+and also computes the <code>Point</code> where the cursor is. If you want to change
+the data model, e.g., to incorporate a selected region, you would also
+need to change <code>whatAndWhere</code> to build a suitable layout from your new
+structure and calculate the cursor position.</p>
+
+<p>If you want to add foreground or background colour to your text, an
+easy way to do it is to add constructors to the <code>Block a</code> datatype
+which signal that a sub-block is coloured.</p>
+
+<pre><code>data Block a
+  = Stuff a
+  | Blank                      -- fits any size
+  | Fg Colour (Block a)
+  | Bg Colour (Block a)
+  | Ver (Layout a) (Layout a)  -- should both have the right width
+                               -- and heights which add correctly
+  | Hor (Layout a) (Layout a)  -- should both have the right height
+                               -- and widths which add correctly
+  deriving Show
+</code></pre>
+
+<p>That way, you can add colour in your <code>whatAndWhere</code> operation. Some of
+you may remember the little evaluation game I built for you in second
+year, computing with highlighted code. That's how I did it. You can
+find the code <a href="https://personal.cis.strath.ac.uk/conor.mcbride/FFFP/toys/leibniz/Block.hs">here</a>.
+Of course, you then need to modify the implementation of <code>layout</code>, e.g.,
+by inserting the escape codes which make colour changes into the
+generated strings. You also need to extend the implementation of
+cropping, discussed next.</p>
+
+<h2>Cropping and Overlaying</h2>
+
+<p>The <a href="https://personal.cis.strath.ac.uk/conor.mcbride/CS410/Overlay.hs"><code>Overlay.hs</code></a> file provides equipment for chopping
+layouts to size. It's used to fit the buffer contents to the console
+window. You can specify a region by giving the coordinates of its
+(left, top) corner and its (width, height). The key worker is
+<code>cropLay</code>, which crops a <code>Layout a</code>, given a cropper for the basic
+<code>a</code> components. A <code>Box</code> cropper, <code>cropBox</code> is provided, so your
+basic gadget is <code>cropLay cropBox</code>. You'll see that <a href="https://personal.cis.strath.ac.uk/conor.mcbride/CS410/Main.hs"><code>Main.hs</code></a>
+uses that gadget to crop out the current <em>line</em> from the buffer when
+your "damage report" is <code>LineChanged</code> or to crop out the whole
+<em>viewport</em> when <code>LotsChanged</code> (or the window changes size, or the
+viewport needs to be repositioned to get the cursor back inside it).</p>
+
+<p>If you wanted to add a status line to your editor, you could modify
+how the viewport is filled, taking one line fewer from the rendered
+buffer to make room for the status.</p>
+
+<p>And then there's <em>overlaying</em>. That's an old exercise I first set in
+2009. You might find it useful if you want to add a popup display of
+any sort. The idea is that we replace <code>Box</code> by <code>Template</code>, which
+allows either a <code>Ready</code> <code>Box</code>, or a <code>Hole</code> where a <code>Box</code> could go.  We
+can then imagine an overlaying operation where <code>Hole</code>s in the front
+layer allow you to see content from the back layer. To implement this,
+you have to work through the front layer, cropping the back layer to
+fit: whenever the front layer has a <code>Hole</code>, just paste in the back
+layer. Of course, if you can overlay two layers, you can overlay any
+number. When you're done, the <code>holeBlank</code> operation converts a
+<code>Layout Template</code> back to a <code>Layout Box</code>, just by turning the <code>Hole</code>s
+(i.e., transparent regions) into <code>Blank</code>s (i.e., opaque regions of
+background colour).</p>
+
+<h2>The Prac1 Data Model</h2>
+
+<p>Our <code>TextCursor</code> type is rather handy for simple editor operations.
+It's also quite handy if you want to grab the text from the buffer as
+a <code>String</code>. You might want to build a thing which does that. You
+may find <code>deactivate</code> a useful function. Also</p>
+
+<pre><code>lines    :: String -&gt; [String]
+unlines  :: [String] -&gt; String
+</code></pre>
+
+<p>map between one-big-string-with-newline-characters-in and
+lists-of-strings-one-for-each-line, as representations of text.
+It's easy to generate input for a parser by that means.</p>
+
+<p>Think twice, though! In <a href="https://personal.cis.strath.ac.uk/conor.mcbride/CS410/Prac4.hs"><code>Prac4.hs</code></a>, we implemented a
+particular interface for <code>Parser</code> functionality, consisting of
+<code>Applicative</code>, <code>Alternative</code> and a thing, <code>char</code> which inspects
+individual characters. Perhaps you could implement the same interface
+for parsers which keep their data in a <code>TextCursor</code> instead of a
+<code>String</code>. You might then be able to move the cursor to the position
+of a parse error!</p>
+
+<p>You might also think of modifying the Prac1 data model, e.g. to
+support selection and cut/copy/paste. You'd need to store the
+clipboard contents and also store the selected text separately
+from the rest of the buffer. You could then modify <code>whatAndWhere</code>
+to assemble the pieces properly, and perhaps highlight the
+selection. If you do have selection available, you could maybe
+select regions for the FOUL interpreter to evaluate.</p>
+
+<p>There's also nothing to stop you working with the Prac1 data model
+as it is. If you want special stuff to happen (e.g. saving and
+loading files, testing code, whatever,...) you could invent a
+special syntax for it and then just look for that syntax whenever
+you parse the file. You could then implement a special keystroke
+whose <code>handleKey</code> operation causes whatever action is requested
+in the text of the buffer itself. It would also not be silly to
+dump the printout from evaluating a FOUL expression as text in the
+buffer. Indeed, once upon a time, I built a programming language
+with a special declaration form</p>
+
+<pre><code>inspect &lt;expression&gt; = &lt;value&gt;
+</code></pre>
+
+<p>and whenever you were editing the file, the <value> was always
+kept up to date with the <expression>.</expression></value></p>
+
+<h2>The Main Module</h2>
+
+<p>There's a lot of boring stuff in this file about communicating with
+the console. Hopefully you can leave it alone.</p>
+
+<p>It gets interesting around the definition of <code>ScreenState</code> which
+effectively describes the visible viewport through which we can
+inspect the buffer. The <code>onScreen</code> function checks whether the
+current cursor position is within the viewport and if not, it
+selects a new <code>ScreenState</code> within which the cursor becomes visible.
+If you had a more interesting display, featuring stuff other than
+the buffer, then you might need to keep track of more information.</p>
+
+<p>There's also some code which turns raw console input into
+intelligible keystrokes. You might want to modify that if you
+have other keystrokes to trap. It might even be possible somehow
+(I wish I knew) to collect mouse actions, in which case you would
+want to generalise <code>Key</code> to some sort of <code>Event</code>.</p>
+
+<p>The <code>outer</code> function is the main event-handling harness of the
+thing. It just kicks off <code>inner</code> with the initial state of the
+buffer rendered, and the damage report <code>LotsChanged</code> to force
+an initial redrawing. The top of the <code>inner</code> function handles
+redrawing: if either the screen size or viewport position has
+changed, the damage report is upgraded to <code>LotsChanged</code>, then
+we trigger whatever redrawing is indicated. Once that's done,
+we wait for a keystroke and decide how to proceed.</p>
+
+<p>The simplest implementation of the required FOUL functionality
+replaces the line</p>
+
+<pre><code>Just Quit -&gt; return ()
+</code></pre>
+
+<p>with something which tries to process the buffer contents as a
+FOUL program, just as in <a href="https://personal.cis.strath.ac.uk/conor.mcbride/CS410/Prac4.hs"><code>Prac4.hs</code></a>, and deliver
+some (nicely formatted) output. That is, you edit interactively,
+but run in batch mode, like it's the mid 1970s.</p>
+
+<p>More modern functionality might happen without quitting the editor
+(feel free to redeploy the ESC key and do quitting differently).
+Consider modifying the <code>Damage</code> type to allow for more messages
+from <code>handleKey</code> to <code>inner</code>, or even add other sorts of requests
+alongside <code>Damage</code> (e.g., saving the file).</p>
+
+<p>What's left in <code>Main</code>? The <code>main</code> function itself. We switch off
+buffering, so input and output come character by character as
+befits an interactive console application. The code checks for
+a command line argument and treats it as a filename, loading its
+contents into the buffer. It's not very resilient to file
+nonexistence. Otherwise we kick off with an empty buffer.</p>
+
+
+
+
+
+<hr>
+<address></address>
+<!-- hhmts start -->Last modified: Tue Apr 16 12:38:40 BST 2013 <!-- hhmts end -->
+ 
+</body></html>
