@@ -155,7 +155,7 @@ data Damage
 
 handleKey :: Key -> TextCursor -> Maybe (Damage, TextCursor)
 handleKey (CharKey c) (sz, (cz, Here, cs), ss)
-               = Just (LineChanged, (sz, (cz, Here, c : cs), ss))
+               = Just (LineChanged, (sz, (cz :< c, Here, cs), ss))
 handleKey (ArrowKey Normal d) s@(sz, c, ss)
   = case moveLineCursorH d c of
       Just nc -> Just (PointChanged, (sz, nc, ss))
