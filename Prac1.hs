@@ -170,11 +170,18 @@ moveLineCursorH _ _ = Nothing
 
 moveLineCursorV :: ArrowDir -> TextCursor -> Maybe TextCursor
 moveLineCursorV UpArrow (sz :< s, c, ss)
-  = Just (sz, (B0, Here, s), snd (deactivate c) : ss)
+  = let (nc, oldLine) = moveVertical c s
+    in Just (sz, nc, oldLine : ss)
 moveLineCursorV DownArrow (sz, c, s : ss)
-  = Just (sz :< (snd (deactivate c)), (B0, Here, s), ss)
+  = let (nc, oldLine) = moveVertical c s
+    in Just (sz :< oldLine, nc, ss)
 moveLineCursorV _ _ = Nothing
 
+moveVertical :: StringCursor -> String -> (StringCursor, String)
+moveVertical c targetLine
+  = let (oldPos, oldLine) = deactivate c
+        nc = activate (oldPos, targetLine)
+    in (nc, oldLine)
 
 lineCursor :: StringCursor
 lineCursor = (B0 :< 'h' :< 'e' :< 'l' :< 'l' :< 'o', Here, ", world!")
