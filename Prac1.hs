@@ -50,6 +50,13 @@ import Overlay
 
 data Bwd x = B0 | Bwd x :< x deriving (Show, Eq)
 
+instance Foldable Bwd where
+  foldr f z B0 = z
+  foldr f z (xs :< x) = foldr f (f x z) xs
+
+toFwd :: Bwd x -> [x]
+toFwd = foldr (:) []
+
 {- A slight improvement on the lecture: this is a cursor with x things
    round the outside, and an m in the middle. The idea is that we keep
    everything in exactly the right order, so you can always see what's
@@ -154,14 +161,19 @@ data Damage
 {--------------------------------------------------------------------------}
 
 handleKey :: Key -> TextCursor -> Maybe (Damage, TextCursor)
+
 handleKey (CharKey c) (sz, (cz, Here, cs), ss)
                = Just (LineChanged, (sz, (cz :< c, Here, cs), ss))
+
 handleKey (ArrowKey Normal d) s@(sz, c, ss)
   = case moveLineCursorH d c of
       Just nc -> Just (PointChanged, (sz, nc, ss))
       Nothing -> case moveLineCursorV d s of
         Just ns -> Just (PointChanged, ns)
         Nothing -> Nothing
+
+handleKey Return (sz, (cz, Here, cs), ss)
+  = Just (LotsChanged, (sz :< toFwd cz, (B0, Here, cs), ss))
 
 moveLineCursorH :: ArrowDir -> StringCursor -> Maybe StringCursor
 moveLineCursorH LeftArrow (cz :< c, Here, cs) = Just (cz, Here, c : cs)
