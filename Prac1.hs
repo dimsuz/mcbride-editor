@@ -175,6 +175,12 @@ handleKey (ArrowKey Normal d) s@(sz, c, ss)
 handleKey Return (sz, (cz, Here, cs), ss)
   = Just (LotsChanged, (sz :< toFwd cz, (B0, Here, cs), ss))
 
+handleKey Backspace (sz, (cz :< c, Here, cs), ss)
+  = Just (LineChanged, (sz, (cz, Here, cs), ss))
+handleKey Backspace (sz :< s, (B0, Here, cs), ss)
+  = Just (LotsChanged, (sz, activate ((length s), s ++ cs), ss))
+handleKey Backspace _ = Nothing
+
 moveLineCursorH :: ArrowDir -> StringCursor -> Maybe StringCursor
 moveLineCursorH LeftArrow (cz :< c, Here, cs) = Just (cz, Here, c : cs)
 moveLineCursorH RightArrow (cz, Here, c : cs) = Just (cz :< c, Here, cs)
@@ -189,11 +195,17 @@ moveLineCursorV DownArrow (sz, c, s : ss)
     in Just (sz :< oldLine, nc, ss)
 moveLineCursorV _ _ = Nothing
 
+-- gets a line cursor and another line, returns a cursor which has
+-- current position in the another line which is the same as it
+-- was in the original line (if possible)
 moveVertical :: StringCursor -> String -> (StringCursor, String)
 moveVertical c targetLine
   = let (oldPos, oldLine) = deactivate c
         nc = activate (oldPos, targetLine)
     in (nc, oldLine)
+
+replaceFst :: c -> (a, b) -> (c, b)
+replaceFst c (a, b)= (c, b)
 
 lineCursor :: StringCursor
 lineCursor = (B0 :< 'h' :< 'e' :< 'l' :< 'l' :< 'o', Here, ", world!")
