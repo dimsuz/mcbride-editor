@@ -29,7 +29,7 @@
 {--------------------------------------------------------------}
 {- This practical makes use of a bunch of other files I've    -}
 {- written, including the layout file from last time. This is -}
-{- the only file you should modify. Don't rename this file!   -} 
+{- the only file you should modify. Don't rename this file!   -}
 {--------------------------------------------------------------}
 
 module Prac1 where
@@ -51,7 +51,7 @@ import Overlay
 data Bwd x = B0 | Bwd x :< x deriving (Show, Eq)
 
 instance Foldable Bwd where
-  foldr f z B0 = z
+  foldr _ z B0 = z
   foldr f z (xs :< x) = foldr f (f x z) xs
 
 toFwd :: Bwd x -> [x]
@@ -86,7 +86,7 @@ type TextCursor = Cursor String StringCursor
    cursor was. This might help you implement up and down, for example. -}
 
 deactivate :: Cursor x Here -> (Int, [x])
-deactivate c = outward 0 c where
+deactivate = outward 0 where
   outward i (B0, Here, xs)       = (i, xs)
   outward i (xz :< x, Here, xs)  = outward (i + 1) (xz, Here, x : xs)
 
@@ -97,7 +97,7 @@ activate :: (Int, [x]) -> Cursor x Here
 activate (i, xs) = inward i (B0, Here, xs) where
   inward _ c@(_, Here, [])     = c  -- we can go no further
   inward 0 c                   = c  -- we should go no further
-  inward i (xz, Here, x : xs)  = inward (i - 1) (xz :< x, Here, xs)  -- and on!
+  inward i' (xz, Here, x : xs')  = inward (i' - 1) (xz :< x, Here, xs')  -- and on!
 
 {- Now, if you give me a TextCursor, I can compute the corresponding
    Layout Box, together with the coordinates of Here.
@@ -175,10 +175,10 @@ handleKey (ArrowKey Normal d) s@(sz, c, ss)
 handleKey Return (sz, (cz, Here, cs), ss)
   = Just (LotsChanged, (sz :< toFwd cz, (B0, Here, cs), ss))
 
-handleKey Backspace (sz, (cz :< c, Here, cs), ss)
+handleKey Backspace (sz, (cz :< _, Here, cs), ss)
   = Just (LineChanged, (sz, (cz, Here, cs), ss))
 handleKey Backspace (sz :< s, (B0, Here, cs), ss)
-  = Just (LotsChanged, (sz, activate ((length s), s ++ cs), ss))
+  = Just (LotsChanged, (sz, activate (length s, s ++ cs), ss))
 handleKey Backspace _ = Nothing
 
 moveLineCursorH :: ArrowDir -> StringCursor -> Maybe StringCursor
@@ -205,7 +205,7 @@ moveVertical c targetLine
     in (nc, oldLine)
 
 replaceFst :: c -> (a, b) -> (c, b)
-replaceFst c (a, b)= (c, b)
+replaceFst c (_, b)= (c, b)
 
 lineCursor :: StringCursor
 lineCursor = (B0 :< 'h' :< 'e' :< 'l' :< 'l' :< 'o', Here, ", world!")
